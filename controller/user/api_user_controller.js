@@ -127,7 +127,9 @@ const user_get_session = (req, res) => {
         const expireseconds = expireminutes * 60;
         console.log(seconds);
         if (seconds < expireseconds) {
-          return res.status(200).json({ message: "session authenticated" });
+          return res
+            .status(200)
+            .json({ key: result.key, message: "session authenticated" });
         } else {
           const filter = { key: result.key };
           const update = { $unset: { session_id: 1, session_time: 1 } };
@@ -441,6 +443,28 @@ const user_changepassword = (req, res) => {
   }
 };
 
+const user_location = (req, res) => {
+  const body = req.body;
+  console.log(body);
+
+  try {
+    const filter = { key: body.key };
+    const data = {
+      $set: {
+        location: {
+          latitude: body.location.latitude,
+          longitude: body.location.longitude,
+        },
+      },
+    };
+    console.log(data);
+    user_object.updateuser(filter, data);
+    return res.status(200).json({ message: "location updated" });
+  } catch (error) {
+    return res.status(500).json({ message: "server error" });
+  }
+};
+
 const user_sendverification_phone = (req, res) => {};
 
 const user_getverification_phone = (req, res) => {};
@@ -465,4 +489,5 @@ module.exports = {
   user_verifyotp_phone,
   user_forgetpassword,
   user_changepassword,
+  user_location,
 };

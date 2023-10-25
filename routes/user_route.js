@@ -17,6 +17,7 @@ const {
   user_getverification_phone,
   user_sendotp_phone,
   user_verifyotp_phone,
+  user_location,
 } = require("../controller/user/api_user_controller.js");
 
 const verifyTokenuser = (req, res, next) => {
@@ -328,5 +329,31 @@ router.post(
   sendverify_middleware_phone,
   user_sendverification_phone
 );
+
+const validateRequestBody_location = [
+  (req, res, next) => {
+    const numberOfFields = Object.keys(req.body).length;
+    if (numberOfFields == 0) {
+      return res.status(400).json({ message: "no feild given" });
+    }
+    next();
+  },
+  check("key").exists().isString(),
+  check("location").exists(),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    console.log(errors);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: "not in proper format" });
+    }
+    next();
+  },
+];
+const sendverify_middleware_location = [
+  validateRequestBody_location,
+  verifyTokenuser,
+];
+
+router.post("/location", sendverify_middleware_location, user_location);
 
 module.exports = router;
