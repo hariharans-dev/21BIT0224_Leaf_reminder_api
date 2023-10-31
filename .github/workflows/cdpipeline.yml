@@ -12,10 +12,10 @@ jobs:
 
     steps:
       - name: Pull Docker image
-        run: sudo docker pull hariharansdeveloper/leaf_reminder_api:latest
+        run: sudo docker pull hariharansdeveloper/cicd-pipeline:latest
 
-      - name: Delete Old Docker container
-        run: sudo docker rm -f leaf_reminder_api-container || true
+      - name: Delete Old docker container
+        run: sudo docker rm -f cicd-pipeline-container || true
 
       - name: Run Docker container
-        run: sudo docker run -d -p 8080:8080 --name leaf_reminder_api-container hariharansdeveloper/leaf_reminder_api
+        run: sudo docker run -d -p 5000:5000 --name cicd-pipeline-container hariharansdeveloper/cicd-pipeline
