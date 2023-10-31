@@ -3,224 +3,136 @@ const Inventory_data = require("./inventory_data_controller.js");
 
 const inventory_object = new Inventory_data();
 
-const inventory_post = (req, res) => {
-  const currentDateTime = new Date();
-  const body = req.body;
-  const data = {
-    device: body.device,
-    deviceid: body.deviceid,
-    created_time: currentDateTime,
-  };
-  const filter = { deviceid: body.deviceid };
+const inventory_post = async (req, res) => {
   try {
-    inventory_object.find_device(filter).then((result) => {
-      if (result == null) {
-        try {
-          inventory_object.create_device(data);
-          console.log("device created");
-          return res.status(200).json({ message: "device created" });
-        } catch (error) {
-          return res.status(500).json({ message: "server error" });
-        }
-      } else {
-        return res.status(409).json({ message: "deviceid already exists" });
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ message: "server error" });
-  }
-};
-
-const inventory_find = (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ message: "not in proper format" });
-  }
-  const authHeader = req.headers["authorization"];
-  if (!authHeader) {
-    return res
-      .status(401)
-      .json({ message: "authorization header is missing." });
-  }
-  const [authType, apiKey] = authHeader.split(" ");
-  if (authType !== "Bearer") {
-    return res
-      .status(400)
-      .json({ message: "invalid Authorization header format." });
-  }
-  if (apiKey !== process.env.INVENTORY_APIKEY && apiKey !== ADMIN_APIKEY) {
-    return res.status(401).json({ message: "invalid Authorization" });
-  } else {
-    const body = req.body;
-    const filter = { device: body.device };
-    try {
-      inventory_object.find_device(filter).then((result) => {
-        console.log("document search");
-        return res.status(200).json(result);
-      });
-    } catch (error) {
-      return res.status(500).json({ message: "server error" });
-    }
-  }
-};
-
-const inventory_list = (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ message: "not in proper format" });
-  }
-  const authHeader = req.headers["authorization"];
-  if (!authHeader) {
-    console.log("no authorisation");
-    return res
-      .status(401)
-      .json({ message: "authorization header is missing." });
-  }
-  const [authType, apiKey] = authHeader.split(" ");
-  if (authType !== "Bearer") {
-    console.log("invalid authorization header");
-    return res
-      .status(400)
-      .json({ message: "invalid Authorization header format." });
-  }
-  if (apiKey !== process.env.INVENTORY_APIKEY && apiKey !== ADMIN_APIKEY) {
-    return res.status(401).json({ message: "invalid Authorization" });
-  } else {
-    const body = req.body;
-    const filter = { device: body.device };
-    try {
-      inventory_object.findall_device(filter).then((result) => {
-        var data = [];
-        for (var i = 0; i < result.length; i++) {
-          data[i] = { deviceid: result[i].deviceid };
-        }
-        console.log("documents search");
-        return res.status(200).json(data);
-      });
-    } catch (error) {
-      return res.status(500).json({ message: "server error" });
-    }
-  }
-};
-
-const inventory_update = (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ message: "not in proper format" });
-  }
-  const authHeader = req.headers["authorization"];
-  if (!authHeader) {
-    console.log("no authorisation");
-    return res
-      .status(401)
-      .json({ message: "authorization header is missing." });
-  }
-  const [authType, apiKey] = authHeader.split(" ");
-  if (authType !== "Bearer") {
-    console.log("invalid authorization header");
-    return res
-      .status(400)
-      .json({ message: "invalid Authorization header format." });
-  }
-  if (apiKey !== process.env.INVENTORY_APIKEY && apiKey !== ADMIN_APIKEY) {
-    return res.status(401).json({ message: "invalid Authorization" });
-  } else {
-    const body = req.body;
     const currentDateTime = new Date();
-    var filter = { deviceid: body.olddeviceid };
-    var data = {
-      deviceid: body.newdeviceid,
+    const body = req.body;
+    const data = {
       device: body.device,
-      updated_time: currentDateTime,
+      deviceid: body.deviceid,
+      created_time: currentDateTime,
     };
-    var update = { $set: data };
-    try {
-      inventory_object.find_device(filter).then((result) => {
-        if (result == null) {
-          return res.status(404).json({ message: "no such deviceid" });
-        } else {
-          if (body.olddeviceid == body.newdeviceid) {
-            try {
-              filter = { deviceid: body.olddeviceid };
-              inventory_object.update_device(filter, update);
-              console.log("device updated");
-              return res.status(200).json({ message: "device updated" });
-            } catch (error) {
-              return res.status(500).json({ message: "server error" });
-            }
-          } else {
-            try {
-              filter = { deviceid: body.newdeviceid };
-              inventory_object.find_device(filter).then((result) => {
-                if (result == null) {
-                  try {
-                    filter = { deviceid: body.olddeviceid };
-                    inventory_object.update_device(filter, update);
-                    console.log("device updated");
-                    return res.status(200).json({ message: "device updated" });
-                  } catch (error) {
-                    return res.status(500).json({ message: "server error" });
-                  }
-                } else {
-                  return res
-                    .status(404)
-                    .json({ message: "deviceid already exists" });
-                }
-              });
-            } catch (error) {
-              return res.status(500).json({ message: "server error" });
-            }
-          }
-        }
-      });
-    } catch (error) {
-      return res.status(500).json({ message: "server error" });
+    const filter = { deviceid: body.deviceid };
+
+    const result = await inventory_object.find_device(filter);
+
+    if (result == null) {
+      try {
+        await inventory_object.create_device(data);
+        console.log("Device created");
+        return res.status(200).json({ message: "Device created" });
+      } catch (error) {
+        console.error("Error creating device:", error);
+        return res.status(500).json({ message: "Server error" });
+      }
+    } else {
+      return res.status(409).json({ message: "Device ID already exists" });
     }
+  } catch (error) {
+    console.error("An error occurred:", error);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-const inventory_delete = (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ message: "not in proper format" });
-  }
-  const authHeader = req.headers["authorization"];
-  if (!authHeader) {
-    console.log("no authorisation");
-    return res
-      .status(401)
-      .json({ message: "authorization header is missing." });
-  }
-  const [authType, apiKey] = authHeader.split(" ");
-  if (authType !== "Bearer") {
-    console.log("invalid authorization header");
-    return res
-      .status(400)
-      .json({ message: "invalid Authorization header format." });
-  }
-  if (apiKey !== process.env.INVENTORY_APIKEY && apiKey !== ADMIN_APIKEY) {
-    return res.status(401).json({ message: "invalid Authorization" });
-  } else {
+const inventory_find = async (req, res) => {
+  try {
     const body = req.body;
-    const filter = { deviceid: body.deviceid };
-    try {
-      inventory_object.find_device(filter).then((result) => {
-        if (result == null) {
-          return res.status(404).json({ message: "no device found" });
-        } else {
-          console.log("device deleted");
-          try {
-            inventory_object.delete_device(filter);
-            console.log("device deleted");
-            return res.status(200).json({ message: "device deleted" });
-          } catch (error) {
-            return res.status(500).json({ message: "server error" });
-          }
-        }
-      });
-    } catch (error) {
-      return res.status(500).json({ message: "server error" });
+    const filter = { device: body.device };
+
+    const result = await inventory_object.find_device(filter);
+
+    console.log("Document search");
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("An error occurred:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const inventory_list = async (req, res) => {
+  try {
+    const body = req.body;
+    const filter = { device: body.device };
+
+    const result = await inventory_object.findall_device(filter);
+    const data = result.map((item) => ({ deviceid: item.deviceid }));
+
+    console.log("Documents search");
+
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error("An error occurred:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const inventory_update = async (req, res) => {
+  const body = req.body;
+  const currentDateTime = new Date();
+  const filter = { deviceid: body.olddeviceid };
+  const data = {
+    deviceid: body.newdeviceid,
+    device: body.device,
+    updated_time: currentDateTime,
+  };
+  const update = { $set: data };
+
+  try {
+    const result = await inventory_object.find_device(filter);
+
+    if (result == null) {
+      return res.status(404).json({ message: "No such deviceid" });
     }
+
+    if (body.olddeviceid == body.newdeviceid) {
+      filter = { deviceid: body.olddeviceid };
+      await inventory_object.update_device(filter, update);
+      console.log("Device updated");
+      return res.status(200).json({ message: "Device updated" });
+    } else {
+      filter = { deviceid: body.newdeviceid };
+      const existingDevice = await inventory_object.find_device(filter);
+
+      if (existingDevice == null) {
+        filter = { deviceid: body.olddeviceid };
+        await inventory_object.update_device(filter, update);
+        console.log("Device updated");
+        return res.status(200).json({ message: "Device updated" });
+      } else {
+        return res.status(409).json({ message: "Device ID already exists" });
+      }
+    }
+  } catch (error) {
+    console.error("An error occurred:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const inventory_delete = async (req, res) => {
+  const body = req.body;
+  const filter = { deviceid: body.deviceid };
+
+  try {
+    const result = await inventory_object.find_device(filter);
+
+    if (result == null) {
+      return res.status(404).json({ message: "No device found" });
+    }
+
+    console.log("Device deleted");
+
+    try {
+      await inventory_object.delete_device(filter);
+      console.log("Device deleted");
+      return res.status(200).json({ message: "Device deleted" });
+    } catch (error) {
+      console.error("An error occurred:", error);
+      return res.status(500).json({ message: "Server error" });
+    }
+  } catch (error) {
+    console.error("An error occurred:", error);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
