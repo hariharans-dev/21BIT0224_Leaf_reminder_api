@@ -14,7 +14,7 @@ jobs:
       - name: Pull Docker image
         run: sudo docker pull hariharansdeveloper/leaf_reminder_api:latest
 
-      - name: Delete Old docker container
+      - name: Delete Old Docker container
         run: sudo docker rm -f leaf_reminder_api-container || true
 
       - name: Run Docker container
