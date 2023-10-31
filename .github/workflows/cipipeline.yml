@@ -17,7 +17,7 @@ jobs:
         run: docker login -u ${{secrets.DOCKER_USERNAME}} -p ${{secrets.DOCKER_PASSWORD}}
         
       - name: Build the Docker image
-        run: docker build -t hariharansdeveloper/cicd-pipeline:latest .
+        run: docker build -t hariharansdeveloper/leaf_reminder_api:latest .
 
       - name: Push to Docker Hub
-        run: docker push hariharansdeveloper/cicd-pipeline:latest
+        run: docker push hariharansdeveloper/leaf_reminder_api:latest

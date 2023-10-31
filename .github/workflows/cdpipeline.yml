@@ -2,20 +2,20 @@ name: CD Pipeline
 
 on:
   workflow_run:
-    workflows: ["CI Pipeline"]
+    workflow: ["CI Pipeline"]
     types:
       - completed
 
 jobs:
   build:
     runs-on: self-hosted
-
-    steps:
-      - name: Pull Docker image
-        run: sudo docker pull hariharansdeveloper/cicd-pipeline:latest
-
-      - name: Delete Old docker container
-        run: sudo docker rm -f cicd-pipeline-container || true
-
-      - name: Run Docker container
-        run: sudo docker run -d -p 5000:5000 --name cicd-pipeline-container hariharansdeveloper/cicd-pipeline
+  
+  steps:
+    - name: Pull Docker image
+      run: sudo docker pull hariharansdeveloper/leaf_reminder_api:latest
+    
+    - name: Delete old docker image
+      run: sudo docker rm -f leaf_reminder_api-container || true
+    
+    - name: Run docker container
+      run: sudo docker run -d -p 5000:5000 --name leaf_reminder_api-container hariharansdeveloper/leaf_reminder_api
