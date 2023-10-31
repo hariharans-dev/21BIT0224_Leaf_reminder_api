@@ -5,7 +5,7 @@ const inventory_object = new Inventory_data();
 
 const inventory_post = async (req, res) => {
   try {
-    const currentDateTime = new Date();
+    const currentDateTime = new Date(); 
     const body = req.body;
     const data = {
       device: body.device,
