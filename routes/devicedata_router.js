@@ -16,8 +16,7 @@ function decode_byte64(base64Credentials) {
   const [user, password] = decodedCredentials.split(":");
   return [user, password];
 }
-
-const verifyTokendevice = (req, res, next) => {
+const verifydevicerequest = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   if (!authHeader) {
     console.log("no authorisation");
@@ -41,7 +40,7 @@ const verifyTokendevice = (req, res, next) => {
   }
   next();
 };
-const verifyTokenuser = (req, res, next) => {
+const verifyTokendevice = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   if (!authHeader) {
     console.log("no authorisation");
@@ -89,7 +88,7 @@ const validateRequestBody_devicedata_post = [
 ];
 const post_middleware = [
   validateRequestBody_devicedata_post,
-  verifyTokendevice,
+  verifydevicerequest,
 ];
 router.post("/devicedata", post_middleware, devicedata_post);
 
@@ -112,7 +111,7 @@ const validateRequestBody_control_create = [
 ];
 const controls_create_middleware = [
   validateRequestBody_control_create,
-  verifyTokenuser,
+  verifyTokendevice,
 ];
 router.post("/control/create", controls_create_middleware, control_create);
 
@@ -136,7 +135,7 @@ const validateRequestBody_control_automatic = [
 ];
 const controls_automatic_middleware = [
   validateRequestBody_control_automatic,
-  verifyTokenuser,
+  verifyTokendevice,
 ];
 router.post(
   "/control/automatic",
@@ -164,7 +163,7 @@ const validateRequestBody_control_manual = [
 ];
 const controls_manual_middleware = [
   validateRequestBody_control_manual,
-  verifyTokenuser,
+  verifyTokendevice,
 ];
 router.post("/control/manual", controls_manual_middleware, control_manual);
 
@@ -189,7 +188,7 @@ const validateRequestBody_control_timeinterval = [
 ];
 const controls_timeinterval_middleware = [
   validateRequestBody_control_timeinterval,
-  verifyTokenuser,
+  verifyTokendevice,
 ];
 router.post(
   "/control/timeinterval",
