@@ -3,12 +3,6 @@ const Device_data = require("./device_data_controller.js");
 
 const device_object = new Device_data();
 
-function encode_byte64(user, password) {
-  const credentials = `${user}:${password}`;
-  const base64Credentials = Buffer.from(credentials).toString("base64");
-  return base64Credentials;
-}
-
 function decode_byte64(base64Credentials) {
   const decodedCredentials = Buffer.from(base64Credentials, "base64").toString(
     "utf-8"
