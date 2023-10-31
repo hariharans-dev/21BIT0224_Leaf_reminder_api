@@ -1,20 +1,23 @@
-name: "ci pipeline"
+name: CI Pipeline
 
 on:
   push:
-    branch:
+    branches:
       - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-  steps:
-    - name: checkout code
-      run: actions/checkout@v2
-    - name: login to docker hub
-      run: docker login -u ${{secrets.DOCKER_USERNAME}} -p ${{secrets.DOCKER_PASSWORD}}
-    - name: build Docker image
-      run: docker build -t hariharansdeveloper/leaf_reminder_api:latest
-    - name: push image to docker hub
-      run: docker push hariharansdeveloper/leaf_reminder_api:latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Login to Docker Hub
+        run: docker login -u ${{secrets.DOCKER_USERNAME}} -p ${{secrets.DOCKER_PASSWORD}}
+        
+      - name: Build the Docker image
+        run: docker build -t hariharansdeveloper/leaf_reminder_api:latest .
+
+      - name: Push to Docker Hub
+        run: docker push hariharansdeveloper/leaf_reminder_api:latest
