@@ -1,0 +1,20 @@
+name: "ci pipeline"
+
+on:
+  push:
+    branch:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+  steps:
+    - name: checkout code
+      run: actions/checkout@v2
+    - name: login to docker hub
+      run: docker login -u ${{secrets.DOCKER_USERNAME}} -p ${{secrets.DOCKER_PASSWORD}}
+    - name: build Docker image
+      run: docker build -t hariharansdeveloper/leaf_reminder_api:latest
+    - name: push image to docker hub
+      run: docker push hariharansdeveloper/leaf_reminder_api:latest
