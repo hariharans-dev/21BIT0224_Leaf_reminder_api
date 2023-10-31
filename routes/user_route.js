@@ -43,6 +43,13 @@ const verifyTokenuser = (req, res, next) => {
   }
   next();
 };
+function decode_byte64(base64Credentials) {
+  const decodedCredentials = Buffer.from(base64Credentials, "base64").toString(
+    "utf-8"
+  );
+  const [user, password] = decodedCredentials.split(":");
+  return [user, password];
+}
 
 const validateRequestBody_crate = [
   (req, res, next) => {
@@ -187,26 +194,32 @@ router.post(
 
 const validateRequestBody_getverify_user = [
   (req, res, next) => {
-    const numberOfFields = Object.keys(req.body).length;
-    if (numberOfFields == 0) {
-      return res.status(400).json({ message: "no feild given" });
+    const keyParam = req.query.key; 
+
+    if (typeof keyParam === "undefined" || keyParam === null) {
+      return res
+        .status(400)
+        .json({ message: "Missing 'key' parameter in the query string" });
     }
-    next();
-  },
-  check("verification_key").exists().isString(),
-  (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ message: "not in proper format" });
+
+    if (typeof keyParam !== "string") {
+      return res
+        .status(400)
+        .json({ message: "The 'key' parameter is not a string" });
+    }
+
+    const [apikey, data] = decode_byte64(keyParam);
+    if (apikey !== process.env.EMAIL_VERIFICATION_APIKEY) {
+      return res
+        .status(400)
+        .json({ message: "invalid Authorization header format." });
     }
     next();
   },
 ];
-const getverify_middleware = [
-  validateRequestBody_getverify_user,
-  verifyTokenuser,
-];
-router.post(
+
+const getverify_middleware = [validateRequestBody_getverify_user];
+router.get(
   "/getverification",
   getverify_middleware,
   user_getverification_email
