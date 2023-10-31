@@ -31,437 +31,504 @@ function decode_byte64(base64Credentials) {
   return [user, password];
 }
 
-const user_post = (req, res) => {
+const user_create = async (req, res) => {
   const newuser = req.body;
   const byte64 = encode_byte64(newuser.user, newuser.password);
   const filter = { user: newuser.user };
+
   try {
-    user_object.finduser(filter).then((value) => {
-      if (value == null) {
-        console.log("no duplication");
-        (async () => {
-          try {
-            const deviceId = await device_assignment();
-            if (deviceId !== null) {
-              const currentDateTime = new Date();
-              const new_user = {
-                user: newuser.user,
-                name: newuser.name,
-                key: byte64,
-                created_time: currentDateTime,
-                deviceid: deviceId,
-                verified: false,
-              };
-              try {
-                user_object.createuser(new_user);
-                console.log("user created");
-                res.status(201).json({ message: "user created" });
-              } catch (error) {
-                console.log("error");
-                return res.status(500).json({ message: "server error" });
-              }
-            } else {
-              res.status(404).json({ message: "user not created" });
-            }
-          } catch (error) {
-            console.error("An error occurred:");
-            return res.status(500).json({ message: "server error" });
-          }
-        })();
-      } else {
-        console.log("duplication");
-        return res.status(409).json({ message: "user already exits" });
+    const existingUser = await user_object.finduser(filter);
+
+    if (existingUser != null) {
+      console.log("user exits");
+      return res.status(409).json({ message: "User already exists" });
+    }
+    const deviceId = await device_assignment();
+
+    if (deviceId !== null) {
+      const currentDateTime = new Date();
+      const new_user = {
+        user: newuser.user,
+        name: newuser.name,
+        key: byte64,
+        created_time: currentDateTime,
+        deviceid: deviceId,
+        verified: false,
+      };
+
+      try {
+        await user_object.createuser(new_user);
+        console.log("user created");
+        return res.status(201).json({ message: "User created" });
+      } catch (error) {
+        console.error("server error");
+        return res.status(500).json({ message: "Server error" });
       }
-    });
+    } else {
+      return res.status(404).json({ message: "User not created" });
+    }
   } catch (error) {
-    return res.status(500).json({ message: "server error" });
+    console.error("server error");
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-const user_get = (req, res) => {
-  const body = req.body;
-  const byte64 = encode_byte64(body.user, body.password);
-  const filter = { key: byte64 };
+const user_login = async (req, res) => {
   try {
-    user_object.finduser(filter).then((result) => {
-      if (result == null) {
-        return res.status(404).json({ message: "user not found" });
-      } else {
-        const filter = { key: result.key };
-        const session_id = generateRandomKey();
-        const currentDateTime = new Date();
-        const update = {
-          $set: { session_id: session_id, session_time: currentDateTime },
-        };
-        try {
-          user_object.updateuser(filter, update);
-        } catch (error) {
-          return res.status(500).json({ message: "server error" });
-        }
-        return res
-          .status(200)
-          .json({ key: result.key, session_id: session_id });
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ message: "server error" });
-  }
-};
+    const { user, password } = req.body;
+    const byte64 = encode_byte64(user, password);
+    const filter = { key: byte64 };
 
-const user_get_session = (req, res) => {
-  const body = req.body;
-  console.log(body);
-  const filter = { session_id: body.session_id };
-  try {
-    user_object.finduser(filter).then((result) => {
-      if (result == null) {
-        return res.status(404).json({ message: "session not found" });
-      } else {
-        const session_time = result.session_time;
-        const currentDateTime = new Date();
-        const timedifference = currentDateTime - session_time;
-        const seconds = timedifference / 1000;
-        console.log(seconds);
-        const expirehours = 24;
-        const expireminutes = expirehours * 60;
-        const expireseconds = expireminutes * 60;
-        console.log(seconds);
-        if (seconds < expireseconds) {
-          return res
-            .status(200)
-            .json({ key: result.key, message: "session authenticated" });
-        } else {
-          const filter = { key: result.key };
-          const update = { $unset: { session_id: 1, session_time: 1 } };
-          try {
-            user_object.updateuser(filter, update);
-            return res.status(409).json({ message: "session not found" });
-          } catch (error) {
-            return res.status(500).json({ message: "server error" });
-          }
-        }
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ message: "server error" });
-  }
-};
+    const result = await user_object.finduser(filter);
 
-const user_put = (req, res) => {
-  const body = req.body;
-  var userkey = body.key;
-  var filter = { key: userkey };
-  try {
-    user_object.finduser(filter).then((result) => {
-      if (result == null) {
-        console.log("user not found");
-        return res.status(404).json({ message: "user not found" });
-      } else {
-        [olduser, oldpassword] = decode_byte64(userkey);
-        var update_data = body;
-        if (body.user != null) {
-          filter = { user: body.user };
-          user_object.finduser(filter).then((result) => {
-            if (result != null) {
-              return res.status(409).json({ message: "user already exits" });
-            }
-          });
-          const key = encode_byte64(body.user, oldpassword);
-          update_data.key = key;
-          update_data.verified = false;
-        }
-        const currentDateTime = new Date();
-        update_data.updated_time = currentDateTime;
-        const update = { $set: update_data };
-        const filter1 = { key: userkey };
-        try {
-          user_object.updateuser(filter1, update);
-          return res.status(200).json({ message: "user updated" });
-        } catch {
-          return res.status(500).json({ message: "server error" });
-        }
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ message: "server error" });
-  }
-};
+    if (result == null) {
+      console.log("user not found");
+      return res.status(404).json({ message: "User not found" });
+    }
 
-const user_delete = (req, res) => {
-  const body = req.body;
-  const filter = { key: body.key };
-  try {
-    user_object.finduser(filter).then((result) => {
-      if (result == null) {
-        console.log("no user found");
-        return res.status(404).json({ message: "user not found" });
-      } else {
-        try {
-          user_object.deleteuser(filter);
-          console.log("user deleted");
-          return res
-            .status(200)
-            .json({ message: "user deleted", user: result.user });
-        } catch (error) {
-          return res.status(500).json({ message: "server error" });
-        }
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ message: "server error" });
-  }
-};
-
-const user_sendverification_email = (req, res) => {
-  const filter = { key: req.body.key };
-  try {
+    const session_id = generateRandomKey();
     const currentDateTime = new Date();
-    user_object.finduser(filter).then((result) => {
-      if (result == null) {
-        return res.status(404).json({ message: "user not found" });
-      } else {
-        if (result.verified == true) {
-          return res.status(409).json({ message: "user already verified" });
-        }
-        const verification_key = generateRandomKey();
-        const update = {
-          $set: {
-            verify_send_time: currentDateTime,
-            verification_key: verification_key,
-          },
-        };
-        try {
-          user_object.updateuser(filter, update);
-        } catch (error) {
-          return res.status(500).json({ message: "server error" });
-        }
-        return res.status(200).json({ verification_key: verification_key });
-      }
-    });
+    const update = {
+      $set: { session_id, session_time: currentDateTime },
+    };
+
+    try {
+      await user_object.updateuser(filter, update);
+      console.log("user login");
+      return res.status(200).json({ key: result.key, session_id });
+    } catch (error) {
+      console.error("server error");
+      return res.status(500).json({ message: "Server error" });
+    }
   } catch (error) {
-    return res.status(500).json({ message: "server error" });
+    console.error("server error");
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-const user_getverification_email = (req, res) => {
-  const filter = { verification_key: req.body.verification_key };
+const user_login_session = async (req, res) => {
   try {
-    user_object.finduser(filter).then((result) => {
-      if (result == null) {
-        return res.status(404).json({ message: "verification key not found" });
-      } else {
-        const verify_send_time = result.verify_send_time;
+    const { session_id } = req.body;
+    console.log(session_id);
+    const filter = { session_id };
+
+    const result = await user_object.finduser(filter);
+
+    if (result == null) {
+      console.log("session not found");
+      return res.status(404).json({ message: "Session not found" });
+    }
+
+    const session_time = result.session_time;
+    const currentDateTime = new Date();
+    const timedifference = currentDateTime - session_time;
+    const seconds = timedifference / 1000;
+
+    const expirehours = 24;
+    const expireminutes = expirehours * 60;
+    const expireseconds = expireminutes * 60;
+
+    console.log(seconds);
+
+    if (seconds < expireseconds) {
+      console.log("session authenticated");
+      return res
+        .status(200)
+        .json({ key: result.key, message: "Session authenticated" });
+    } else {
+      const key = result.key;
+      const update = { $unset: { session_id: 1, session_time: 1 } };
+
+      try {
+        await user_object.updateuser({ key }, update);
+        console.log("session timeout");
+        return res.status(409).json({ message: "Session not found" });
+      } catch (error) {
+        console.error("server error");
+        return res.status(500).json({ message: "Server error" });
+      }
+    }
+  } catch (error) {
+    console.error("server error");
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const user_update = async (req, res) => {
+  const body = req.body;
+  const userkey = body.key;
+  const filter = { key: userkey };
+
+  try {
+    const result = await user_object.finduser(filter);
+
+    if (result == null) {
+      console.log("user not found");
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const [olduser, oldpassword] = decode_byte64(userkey);
+    const update_data = body;
+
+    if (body.user != null) {
+      const userFilter = { user: body.user };
+
+      try {
+        const existingUser = await user_object.finduser(userFilter);
+
+        if (existingUser != null) {
+          console.log("user exits");
+          return res.status(409).json({ message: "User already exists" });
+        }
+
+        const key = encode_byte64(body.user, oldpassword);
+        update_data.key = key;
+        update_data.verified = false;
+      } catch (error) {
+        console.log("server error");
+        return res.status(500).json({ message: "Server error" });
+      }
+    }
+
+    const currentDateTime = new Date();
+    update_data.updated_time = currentDateTime;
+    const update = { $set: update_data };
+    const filter1 = { key: userkey };
+
+    try {
+      await user_object.updateuser(filter1, update);
+      console.log("user updated");
+      return res.status(200).json({ message: "User updated" });
+    } catch (error) {
+      console.log("server error");
+      return res.status(500).json({ message: "Server error" });
+    }
+  } catch (error) {
+    console.log("server error");
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const user_delete = async (req, res) => {
+  try {
+    const { key } = req.body;
+    const filter = { key };
+
+    const result = await user_object.finduser(filter);
+
+    if (result == null) {
+      console.log("user not found");
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    try {
+      await user_object.deleteuser(filter);
+      console.log("user deleted");
+      return res
+        .status(200)
+        .json({ message: "User deleted", user: result.user });
+    } catch (error) {
+      console.log("server error");
+      return res.status(500).json({ message: "Server error" });
+    }
+  } catch (error) {
+    console.log("server error");
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const user_sendverification_email = async (req, res) => {
+  try {
+    const filter = { key: req.body.key };
+    const currentDateTime = new Date();
+
+    const result = await user_object.finduser(filter);
+
+    if (result == null) {
+      console.log("user not found");
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (result.verified === true) {
+      console.log("user already verified");
+      return res.status(409).json({ message: "User already verified" });
+    }
+
+    const verification_key = generateRandomKey();
+    const update = {
+      $set: {
+        verify_send_time: currentDateTime,
+        verification_key: verification_key,
+      },
+    };
+
+    try {
+      await user_object.updateuser(filter, update);
+      console.log("verification sent");
+      return res.status(200).json({ verification_key });
+    } catch (error) {
+      console.log("server error");
+      return res.status(500).json({ message: "Server error" });
+    }
+  } catch (error) {
+    console.log("server error");
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const user_getverification_email = async (req, res) => {
+  try {
+    const filter = { verification_key: req.body.verification_key };
+    const currentDateTime = new Date();
+
+    const result = await user_object.finduser(filter);
+
+    if (result == null) {
+      console.log("verification key not found");
+      return res.status(404).json({ message: "Verification key not found" });
+    }
+
+    const verify_send_time = result.verify_send_time;
+    const timedifference = currentDateTime - verify_send_time;
+    const seconds = timedifference / 1000;
+
+    const expirehours = Number(process.env.USER_VERIFICATION_EXPIRE_HOURS);
+    const expireminutes = expirehours * 60;
+    const expireseconds = expireminutes * 60;
+
+    if (seconds < expireseconds) {
+      const update = {
+        $unset: {
+          verification_key: 1,
+          verify_send_time: 1,
+        },
+        $set: {
+          verified: true,
+          updated_time: currentDateTime,
+          verified_time: currentDateTime,
+        },
+      };
+
+      try {
+        await user_object.updateuser(filter, update);
+        console.log("user verified");
+        return res.status(200).json({ message: "User verified" });
+      } catch (error) {
+        console.log("server error");
+        return res.status(500).json({ message: "Server error" });
+      }
+    } else {
+      console.log("verification key expired");
+      return res.status(409).json({ message: "Verification key expired" });
+    }
+  } catch (error) {
+    console.log("server error");
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const user_sendotp_email = async (req, res) => {
+  try {
+    const { user } = req.body;
+    const filter = { user };
+    const currentDateTime = new Date();
+
+    const result = await user_object.finduser(filter);
+
+    if (result == null) {
+      console.log("user not found");
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const otp = generateOTP();
+    const update = {
+      $set: {
+        otp_send_time: currentDateTime,
+        otp,
+      },
+    };
+
+    try {
+      await user_object.updateuser(filter, update);
+      console.log("user otp sent");
+      return res.status(200).json({ otp });
+    } catch (error) {
+      console.log("server error");
+      return res.status(500).json({ message: "Server error" });
+    }
+  } catch (error) {
+    console.log("server error");
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const user_verifyotp_email = async (req, res) => {
+  try {
+    const { user, otp } = req.body;
+    const filter = { user };
+
+    const result = await user_object.finduser(filter);
+
+    if (result == null) {
+      console.log("user not found");
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (result.otp != null) {
+      if (result.otp === otp) {
+        const otp_send_time = result.otp_send_time;
         const currentDateTime = new Date();
-        const timedifference = currentDateTime - verify_send_time;
+        const timedifference = currentDateTime - otp_send_time;
         const seconds = timedifference / 1000;
-        console.log(seconds);
-        const expirehours = 6;
-        const expireminutes = expirehours * 60;
+
+        const expireminutes = Number(process.env.USER_OTP_EXPIRE_MINUTES);
         const expireseconds = expireminutes * 60;
+
         if (seconds < expireseconds) {
+          const random_key = generateRandomKey();
+          const forget_password_key = encode_byte64(user, random_key);
           const update = {
             $unset: {
-              verification_key: 1,
-              verify_send_time: 1,
+              otp: 1,
+              otp_send_time: 1,
             },
             $set: {
-              verified: true,
-              updated_time: currentDateTime,
-              verified_time: currentDateTime,
+              forget_password_key,
+              forget_password_key_send_time: currentDateTime,
             },
           };
+
           try {
-            user_object.updateuser(filter, update);
-            return res.status(200).json({ message: "user verified" });
+            await user_object.updateuser(filter, update);
+            return res.status(200).json({ forget_password_key });
           } catch (error) {
-            return res.status(500).json({ message: "server error" });
+            console.log("server error");
+            return res.status(500).json({ message: "Server error" });
           }
         } else {
-          return res.status(409).json({ message: "verification key expired" });
+          console.log("otp expired");
+          return res.status(409).json({ message: "OTP expired" });
         }
+      } else {
+        console.log("invalid otp");
+        return res.status(409).json({ message: "Invalid OTP" });
       }
-    });
+    } else {
+      console.log("otp not generated");
+      return res.status(409).json({ message: "No OTP generated" });
+    }
   } catch (error) {
-    return res.status(500).json({ message: "server error" });
+    console.log("server error");
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-const user_sendotp_email = (req, res) => {
-  const filter = { user: req.body.user };
+const user_forgetpassword = async (req, res) => {
   try {
+    const { forget_password_key, password } = req.body;
+    const filter = { forget_password_key };
+
+    const result = await user_object.finduser(filter);
+
+    if (result == null) {
+      console.log("no forgetkey found");
+      return res.status(404).json({ message: "Forget password key timed out" });
+    }
+
+    const forget_password_key_send_time = result.forget_password_key_send_time;
     const currentDateTime = new Date();
-    user_object.finduser(filter).then((result) => {
-      if (result == null) {
-        return res.status(404).json({ message: "user not found" });
-      } else {
-        const otp = generateOTP();
-        const update = {
-          $set: {
-            otp_send_time: currentDateTime,
-            otp: otp,
-          },
-        };
-        try {
-          user_object.updateuser(filter, update);
-        } catch (error) {
-          return res.status(500).json({ message: "server error" });
-        }
-        return res.status(200).json({ otp: otp });
+    const timedifference = currentDateTime - forget_password_key_send_time;
+    const seconds = timedifference / 1000;
+
+    const expireminutes = Number(process.env.USER_FORGETKEY_EXPIRE_MINUTES);
+    const expireseconds = expireminutes * 60;
+
+    if (seconds < expireseconds) {
+      const [olduser, oldpassword] = decode_byte64(result.key);
+      const newkey = encode_byte64(olduser, password);
+      const update = {
+        $set: { key: newkey },
+        $unset: {
+          forget_password_key: 1,
+          forget_password_key_send_time: 1,
+        },
+      };
+      const update_filter = { key: result.key };
+
+      try {
+        await user_object.updateuser(update_filter, update);
+        console.log("password changed");
+        return res.status(200).json({ message: "Password changed" });
+      } catch (error) {
+        console.log("server error");
+        return res.status(500).json({ message: "Server error" });
       }
-    });
+    } else {
+      console.log("forget password key expired");
+      return res.status(409).json({ message: "Forget password key expired" });
+    }
   } catch (error) {
-    return res.status(500).json({ message: "server error" });
+    console.log("server error");
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-const user_verifyotp_email = (req, res) => {
-  const filter = { user: req.body.user };
+const user_changepassword = async (req, res) => {
   try {
-    user_object.finduser(filter).then((result) => {
-      if (result == null) {
-        return res.status(404).json({ message: "no user not found" });
-      } else {
-        if (result.otp != null) {
-          if (result.otp === req.body.otp) {
-            const otp_send_time = result.otp_send_time;
-            const currentDateTime = new Date();
-            const timedifference = currentDateTime - otp_send_time;
-            const seconds = timedifference / 1000;
-            console.log(seconds);
-            const expireminutes = 2.5;
-            const expireseconds = expireminutes * 60;
-            if (seconds < expireseconds) {
-              const random_key = generateRandomKey();
-              const forget_password_key = encode_byte64(body.user, random_key);
-              const update = {
-                $unset: {
-                  otp: 1,
-                  otp_send_time: 1,
-                },
-                $set: {
-                  forget_password_key: forget_password_key,
-                  forget_password_key_send_time: currentDateTime,
-                },
-              };
-              try {
-                user_object.updateuser(filter, update);
-                return res
-                  .status(200)
-                  .json({ forget_password_key: forget_password_key });
-              } catch (error) {
-                return res.status(500).json({ message: "server error" });
-              }
-            } else {
-              return res.status(409).json({ message: "otp expired" });
-            }
-          } else {
-            return res.status(409).json({ message: "invalid otp" });
-          }
-        } else {
-          return res.status(409).json({ message: "no otp generated" });
-        }
+    const { key, oldpassword, password } = req.body;
+    const filter = { key };
+
+    const result = await user_object.finduser(filter);
+
+    if (result == null) {
+      console.log("user not found");
+      return res.status(404).json({ message: "No user found" });
+    }
+
+    const [original_old_user, original_old_password] = decode_byte64(key);
+
+    if (original_old_password === oldpassword) {
+      try {
+        const newkey = encode_byte64(original_old_user, password);
+        const update = { $set: { key: newkey } };
+        const update_filter = { key };
+
+        await user_object.updateuser(update_filter, update);
+        console.log("password changed");
+        return res.status(200).json({ message: "Password changed" });
+      } catch (error) {
+        console.log("server error");
+        return res.status(500).json({ message: "Server error" });
       }
-    });
+    } else {
+      console.log("invalid old password");
+      return res.status(409).json({ message: "Invalid old password" });
+    }
   } catch (error) {
-    return res.status(500).json({ message: "server error" });
+    console.log("server error");
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
-const user_forgetpassword = (req, res) => {
-  const body = req.body;
-  const filter = { forget_password_key: body.forget_password_key };
+const user_location = async (req, res) => {
   try {
-    user_object.finduser(filter).then((result) => {
-      if (result == null) {
-        return res.status(404).json({ message: "forget password timed out" });
-      } else {
-        const forget_password_key_send_time =
-          result.forget_password_key_send_time;
-        const currentDateTime = new Date();
-        const timedifference = currentDateTime - forget_password_key_send_time;
-        const seconds = timedifference / 1000;
-        console.log(seconds);
-        const expireminutes = 2;
-        const expireseconds = expireminutes * 60;
-        if (seconds < expireseconds) {
-          const [olduser, oldpassword] = decode_byte64(result.key);
-          const newkey = encode_byte64(olduser, body.password);
-          const update = {
-            $set: { key: newkey },
-            $unset: {
-              forget_password_key: 1,
-              forget_password_key_send_time: 1,
-            },
-          };
-          const update_filter = { key: result.key };
-          try {
-            user_object.updateuser(update_filter, update);
-            return res.status(200).json({ message: "password changed" });
-          } catch (error) {
-            return res.status(500).json({ message: "server error" });
-          }
-        } else {
-          return res
-            .status(409)
-            .json({ message: "forget_password_key expired" });
-        }
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ message: "server error" });
-  }
-};
-
-const user_changepassword = (req, res) => {
-  const body = req.body;
-  try {
-    const filter = { key: body.key };
-    user_object.finduser(filter).then((result) => {
-      if (result == null) {
-        return res.status(404).json({ message: "no user not found" });
-      } else {
-        const [original_old_user, original_old_password] = decode_byte64(
-          body.key
-        );
-        if (original_old_password == body.oldpassword) {
-          try {
-            const newkey = encode_byte64(original_old_user, body.password);
-            const update = { $set: { key: newkey } };
-            const update_filter = { key: body.key };
-            user_object.updateuser(update_filter, update);
-            return res.status(200).json({ message: "password changed" });
-          } catch (error) {
-            return res.status(500).json({ message: "server error" });
-          }
-        } else {
-          return res.status(409).json({ message: "invalid oldpassword" });
-        }
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ message: "server error" });
-  }
-};
-
-const user_location = (req, res) => {
-  const body = req.body;
-  console.log(body);
-
-  try {
-    const filter = { key: body.key };
+    const { key, location } = req.body;
+    const filter = { key };
     const data = {
       $set: {
         location: {
-          latitude: body.location.latitude,
-          longitude: body.location.longitude,
+          latitude: location.latitude,
+          longitude: location.longitude,
         },
       },
     };
-    console.log(data);
-    user_object.updateuser(filter, data);
-    return res.status(200).json({ message: "location updated" });
+
+    await user_object.updateuser(filter, data);
+    console.log("location updated");
+    return res.status(200).json({ message: "Location updated" });
   } catch (error) {
-    return res.status(500).json({ message: "server error" });
+    console.log("server error");
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -474,10 +541,10 @@ const user_sendotp_phone = (req, res) => {};
 const user_verifyotp_phone = (req, res) => {};
 
 module.exports = {
-  user_post,
-  user_get,
-  user_get_session,
-  user_put,
+  user_create,
+  user_login,
+  user_login_session,
+  user_update,
   user_delete,
   user_sendverification_email,
   user_getverification_email,

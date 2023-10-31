@@ -41,30 +41,6 @@ const verifyTokendevice = (req, res, next) => {
   }
   next();
 };
-const verifyTokenuser = (req, res, next) => {
-  const authHeader = req.headers["authorization"];
-  if (!authHeader) {
-    console.log("no authorisation");
-    return res
-      .status(400)
-      .json({ message: "authorization header is missing." });
-  }
-  const [authType, apiKey] = authHeader.split(" ");
-  if (authType !== "Bearer") {
-    console.log("invalid authorization header");
-    return res
-      .status(400)
-      .json({ message: "invalid Authorization header format." });
-  }
-
-  if (
-    apiKey !== process.env.DEVICE_DATA_APIKEY &&
-    apiKey !== process.env.ADMIN_APIKEY
-  ) {
-    return res.status(401).json({ message: "invalid Authorization" });
-  }
-  next();
-};
 
 const validateRequestBody_devicedata_post = [
   (req, res, next) => {
@@ -112,7 +88,7 @@ const validateRequestBody_control_create = [
 ];
 const controls_create_middleware = [
   validateRequestBody_control_create,
-  verifyTokenuser,
+  verifyTokendevice,
 ];
 router.post("/control/create", controls_create_middleware, control_create);
 
@@ -136,7 +112,7 @@ const validateRequestBody_control_automatic = [
 ];
 const controls_automatic_middleware = [
   validateRequestBody_control_automatic,
-  verifyTokenuser,
+  verifyTokendevice,
 ];
 router.post(
   "/control/automatic",
@@ -164,7 +140,7 @@ const validateRequestBody_control_manual = [
 ];
 const controls_manual_middleware = [
   validateRequestBody_control_manual,
-  verifyTokenuser,
+  verifyTokendevice,
 ];
 router.post("/control/manual", controls_manual_middleware, control_manual);
 
@@ -189,7 +165,7 @@ const validateRequestBody_control_timeinterval = [
 ];
 const controls_timeinterval_middleware = [
   validateRequestBody_control_timeinterval,
-  verifyTokenuser,
+  verifyTokendevice,
 ];
 router.post(
   "/control/timeinterval",

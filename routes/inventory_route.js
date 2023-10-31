@@ -55,7 +55,7 @@ const inventorypost_middleware = [
   validateRequestBody_inventory_post,
   verifyTokeninventory,
 ];
-router.post("/inventory", inventorypost_middleware, inventory_post);
+router.post("/create", inventorypost_middleware, inventory_post);
 
 const validateRequestBody_inventory_delete = [
   (req, res, next) => {
@@ -67,12 +67,11 @@ const validateRequestBody_inventory_delete = [
   },
   check("deviceid").exists().isNumeric(),
 ];
-
-router.delete(
-  "/inventory",
+const inventorydelete_middleware = [
   validateRequestBody_inventory_delete,
-  inventory_delete
-);
+  verifyTokeninventory,
+];
+router.delete("/delete", inventorydelete_middleware, inventory_delete);
 
 const validateRequestBody_inventory_find = [
   (req, res, next) => {
@@ -84,8 +83,11 @@ const validateRequestBody_inventory_find = [
   },
   check("device").exists().isString(),
 ];
-
-router.get("/inventory", validateRequestBody_inventory_find, inventory_find);
+const inventoryfind_middleware = [
+  validateRequestBody_inventory_find,
+  verifyTokeninventory,
+];
+router.post("/find", inventoryfind_middleware, inventory_find);
 
 const validateRequestBody_inventory_list = [
   (req, res, next) => {
@@ -97,12 +99,11 @@ const validateRequestBody_inventory_list = [
   },
   check("device").exists().isString(),
 ];
-
-router.get(
-  "/inventory/all",
+const inventorylist_middleware = [
   validateRequestBody_inventory_list,
-  inventory_list
-);
+  verifyTokeninventory,
+];
+router.post("/findall", inventorylist_middleware, inventory_list);
 
 const validateRequestBody_inventory_update = [
   (req, res, next) => {
@@ -116,11 +117,10 @@ const validateRequestBody_inventory_update = [
   check("olddeviceid").exists().isNumeric(),
   check("newdeviceid").exists().isNumeric(),
 ];
-
-router.put(
-  "/inventory",
+const inventoryupdate_middleware = [
   validateRequestBody_inventory_update,
-  inventory_update
-);
+  verifyTokeninventory,
+];
+router.put("/update", inventoryupdate_middleware, inventory_update);
 
 module.exports = router;

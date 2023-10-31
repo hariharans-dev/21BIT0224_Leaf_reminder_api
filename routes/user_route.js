@@ -2,10 +2,10 @@ const router = require("express").Router();
 const { check, validationResult } = require("express-validator");
 
 const {
-  user_post,
-  user_get,
-  user_get_session,
-  user_put,
+  user_create,
+  user_login,
+  user_login_session,
+  user_update,
   user_delete,
   user_sendverification_email,
   user_getverification_email,
@@ -44,7 +44,7 @@ const verifyTokenuser = (req, res, next) => {
   next();
 };
 
-const validateRequestBody_post = [
+const validateRequestBody_crate = [
   (req, res, next) => {
     const numberOfFields = Object.keys(req.body).length;
     if (numberOfFields == 0) {
@@ -63,10 +63,10 @@ const validateRequestBody_post = [
     next();
   },
 ];
-const post_middleware = [validateRequestBody_post, verifyTokenuser];
-router.post("/", post_middleware, user_post);
+const create_middleware = [validateRequestBody_crate, verifyTokenuser];
+router.post("/create", create_middleware, user_create);
 
-const validateRequestBody_get = [
+const validateRequestBody_login = [
   (req, res, next) => {
     const numberOfFields = Object.keys(req.body).length;
     if (numberOfFields == 0) {
@@ -84,10 +84,10 @@ const validateRequestBody_get = [
     next();
   },
 ];
-const get_middleware = [validateRequestBody_get, verifyTokenuser];
-router.post("/login", get_middleware, user_get);
+const login_middleware = [validateRequestBody_login, verifyTokenuser];
+router.post("/login", login_middleware, user_login);
 
-const validateRequestBody_get_session = [
+const validateRequestBody_login_session = [
   (req, res, next) => {
     const numberOfFields = Object.keys(req.body).length;
     if (numberOfFields == 0) {
@@ -104,10 +104,13 @@ const validateRequestBody_get_session = [
     next();
   },
 ];
-const get_session = [validateRequestBody_get_session, verifyTokenuser];
-router.post("/login-session", get_session, user_get_session);
+const login_session_middleware = [
+  validateRequestBody_login_session,
+  verifyTokenuser,
+];
+router.post("/login-session", login_session_middleware, user_login_session);
 
-const validateRequestBody_put = [
+const validateRequestBody_update = [
   (req, res, next) => {
     const numberOfFields = Object.keys(req.body).length;
     const putallowedFields = ["name", "user", "key"];
@@ -132,8 +135,8 @@ const validateRequestBody_put = [
     next();
   },
 ];
-const put_middleware = [validateRequestBody_put, verifyTokenuser];
-router.put("/", put_middleware, user_put);
+const update_middleware = [validateRequestBody_update, verifyTokenuser];
+router.put("/update", update_middleware, user_update);
 
 const validateRequestBody_delete = [
   (req, res, next) => {
@@ -153,7 +156,7 @@ const validateRequestBody_delete = [
   },
 ];
 const delete_middleware = [validateRequestBody_delete, verifyTokenuser];
-router.delete("/", delete_middleware, user_delete);
+router.delete("/delete", delete_middleware, user_delete);
 
 const validateRequestBody_sendverify_user = [
   (req, res, next) => {
@@ -323,7 +326,6 @@ const sendverify_middleware_phone = [
   validateRequestBody_sendverify_phone,
   verifyTokenuser,
 ];
-
 router.post(
   "/sendverification",
   sendverify_middleware_phone,
@@ -353,7 +355,6 @@ const sendverify_middleware_location = [
   validateRequestBody_location,
   verifyTokenuser,
 ];
-
 router.post("/location", sendverify_middleware_location, user_location);
 
 module.exports = router;
