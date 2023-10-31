@@ -2,6 +2,10 @@ const { body } = require("express-validator");
 const {
   device_assignment,
 } = require("../inter_functions/device_allocation.js");
+const { otp_mailer } = require("../inter_functions/otp_mailer.js");
+const {
+  verification_mailer,
+} = require("../inter_functions/verification_mailer.js");
 const Login = require("./user_data_controller.js");
 const crypto = require("crypto");
 
@@ -264,6 +268,11 @@ const user_sendverification_email = async (req, res) => {
 
     try {
       await user_object.updateuser(filter, update);
+      const url =
+        process.env.API_DOMAIN +
+        "/api/users/getverification?key=" +
+        encode_byte64(process.env.EMAIL_VERIFICATION_APIKEY, verification_key);
+      verification_mailer(result.user, url);
       console.log("verification sent");
       return res.status(200).json({ verification_key });
     } catch (error) {
@@ -278,7 +287,10 @@ const user_sendverification_email = async (req, res) => {
 
 const user_getverification_email = async (req, res) => {
   try {
-    const filter = { verification_key: req.body.verification_key };
+    const keyParam = req.query.key;
+    const [apikey, verification_key] = decode_byte64(keyParam);
+    console.log(verification_key);
+    const filter = { verification_key: verification_key };
     const currentDateTime = new Date();
 
     const result = await user_object.finduser(filter);
@@ -351,6 +363,7 @@ const user_sendotp_email = async (req, res) => {
     try {
       await user_object.updateuser(filter, update);
       console.log("user otp sent");
+      otp_mailer(user, otp);
       return res.status(200).json({ otp });
     } catch (error) {
       console.log("server error");
