@@ -63,7 +63,7 @@ const user_create = async (req, res) => {
       try {
         await user_object.createuser(new_user);
         console.log("user created");
-        return res.status(201).json({ message: "User created" });
+        return res.status(200).json({ message: "User created" });
       } catch (error) {
         console.error("server error");
         return res.status(500).json({ message: "Server error" });
@@ -424,11 +424,11 @@ const user_verifyotp_email = async (req, res) => {
         }
       } else {
         console.log("invalid otp");
-        return res.status(409).json({ message: "Invalid OTP" });
+        return res.status(404).json({ message: "Invalid OTP" });
       }
     } else {
       console.log("otp not generated");
-      return res.status(409).json({ message: "No OTP generated" });
+      return res.status(404).json({ message: "No OTP generated" });
     }
   } catch (error) {
     console.log("server error");

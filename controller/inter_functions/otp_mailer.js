@@ -83,8 +83,8 @@ const otp_mailer = (email, otp) => {
     port: 587,
     secure: false, // Use TLS version 1.2
     auth: {
-      user: "shariharan182003@gmail.com",
-      pass: "0HQ74vJ8pVUZj6wS",
+      user: process.env.MAILER_USER,
+      pass: process.env.MAILER_PASSWORD,
     },
   });
   const message = {
