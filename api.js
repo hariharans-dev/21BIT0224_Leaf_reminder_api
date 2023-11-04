@@ -4,7 +4,7 @@ const cors = require("cors");
 app.use(express.json());
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "http://43.205.206.11:3000",
   })
 );
 
@@ -17,12 +17,6 @@ app.use("/api/users", user_router);
 app.use("/api/inventory", inventory_router);
 app.use("/api/device", devicedata_router);
 // app.use("/api/test", test_router);
-
-app.use(
-  cors({
-    origin: "http://localhost:5173",
-  })
-);
 
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
