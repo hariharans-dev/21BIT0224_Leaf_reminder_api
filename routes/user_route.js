@@ -194,7 +194,7 @@ router.post(
 
 const validateRequestBody_getverify_user = [
   (req, res, next) => {
-    const keyParam = req.query.key; 
+    const keyParam = req.query.key;
 
     if (typeof keyParam === "undefined" || keyParam === null) {
       return res

@@ -85,12 +85,12 @@ const verification_mailer = (email, verifyurl) => {
     port: 587,
     secure: false, // Use TLS version 1.2
     auth: {
-      user: "shariharan182003@gmail.com",
-      pass: "0HQ74vJ8pVUZj6wS",
+      user: process.env.MAILER_USER,
+      pass: process.env.MAILER_PASSWORD,
     },
   });
   const message = {
-    from: '"Leaf reminder 👻" <Leaf@gmail.com>', // sender address
+    from: '"Leaf reminder" <Leaf@gmail.com>', // sender address
     to: email, // list of receivers
     subject: "otp ✔", // Subject line
     text: "url", // plain text body
