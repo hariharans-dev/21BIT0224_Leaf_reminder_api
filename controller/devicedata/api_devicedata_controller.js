@@ -185,10 +185,36 @@ const control_timeinterval = async (req, res) => {
   }
 };
 
+const devicedata_list = async (req, res) => {
+  const count = req.body.count;
+  const filter = { deviceid: req.body.deviceid };
+  try {
+    const response = await device_object.findcount_devicedata(filter);
+    if (response[0].data.length <= count) {
+      return res.status(200).json(response[0].data);
+    }
+    var arr = [];
+    var index = 0;
+    for (
+      let i = response[0].data.length - 1;
+      i >= response[0].data.length - count;
+      i--
+    ) {
+      arr[index] = response[0].data[i];
+      index++;
+    }
+    return res.status(200).json(arr);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ message: "server error" });
+  }
+};
+
 module.exports = {
   devicedata_post,
   control_create,
   control_automatic,
   control_manual,
   control_timeinterval,
+  devicedata_list,
 };

@@ -7,6 +7,7 @@ const {
   control_manual,
   control_automatic,
   control_create,
+  devicedata_list,
 } = require("../controller/devicedata/api_devicedata_controller.js");
 
 function decode_byte64(base64Credentials) {
@@ -55,7 +56,6 @@ const verifyTokendevice = (req, res, next) => {
       .status(400)
       .json({ message: "invalid Authorization header format." });
   }
-
   if (
     apiKey !== process.env.DEVICE_DATA_APIKEY &&
     apiKey !== process.env.ADMIN_APIKEY
@@ -91,6 +91,33 @@ const post_middleware = [
   verifydevicerequest,
 ];
 router.post("/devicedata", post_middleware, devicedata_post);
+
+const validateRequestBody_devicedata_find_list = [
+  (req, res, next) => {
+    const numberOfFields = Object.keys(req.body).length;
+    if (numberOfFields == 0) {
+      return res.status(400).json({ message: "no feild given" });
+    }
+    next();
+  },
+  check("deviceid").exists().isNumeric(),
+  check("count").exists().isNumeric(),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log(errors);
+      return res
+        .status(400)
+        .json({ message: "not in proper format", error: errors });
+    }
+    next();
+  },
+];
+const find_middleware = [
+  validateRequestBody_devicedata_find_list,
+  verifyTokendevice,
+];
+router.post("/devicedata/list", find_middleware, devicedata_list);
 
 const validateRequestBody_control_create = [
   (req, res, next) => {

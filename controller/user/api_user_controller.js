@@ -77,6 +77,27 @@ const user_create = async (req, res) => {
   }
 };
 
+const user_details = async (req, res) => {
+  try {
+    const { session_id } = req.body;
+    const filter = { session_id };
+
+    const result = await user_object.finduser(filter);
+    if (result == null) {
+      console.log("user not found");
+      return res.status(404).json({ message: "User not found" });
+    }
+    return res.status(200).json({
+      user: result.user,
+      name: result.name,
+      deviceid: result.deviceid,
+    });
+  } catch (error) {
+    console.error("server error");
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 const user_login = async (req, res) => {
   try {
     const { user, password } = req.body;
@@ -99,7 +120,7 @@ const user_login = async (req, res) => {
     try {
       await user_object.updateuser(filter, update);
       console.log("user login");
-      return res.status(200).json({ key: result.key, session_id });
+      return res.status(200).json({ key: result.key, session_id: session_id });
     } catch (error) {
       console.error("server error");
       return res.status(500).json({ message: "Server error" });
@@ -555,6 +576,7 @@ const user_verifyotp_phone = (req, res) => {};
 
 module.exports = {
   user_create,
+  user_details,
   user_login,
   user_login_session,
   user_update,

@@ -38,12 +38,12 @@ class Device_data {
       return error;
     }
   }
-  findcount_devicedata(filter, count) {
+  findcount_devicedata(filter) {
     try {
       const collections = client
         .db(process.env.DB_USER)
         .collection(process.env.COLLECTION_DEVICEDATA);
-      const results = collections.find(filter).limit(count).toArray();
+      const results = collections.find(filter).toArray();
       return results;
     } catch (error) {
       return error;
