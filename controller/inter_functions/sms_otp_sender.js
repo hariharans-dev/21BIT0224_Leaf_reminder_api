@@ -2,24 +2,30 @@ const { Vonage } = require("@vonage/server-sdk");
 
 async function sendSMS(to, text) {
   const vonage = new Vonage({
-    apiKey: "d6995cc0",
-    apiSecret: "2XkNbXPp4YCouOCR",
+    apiKey: process.env.VONAGE_API_KEY,
+    apiSecret: process.env.VONAGE_SECRET_VALUE,
   });
   const from = "Vonage APIs";
-  await vonage.sms
-    .send({ to, from, text })
-    .then(() => {
-      console.log("Message sent successfully");
-    })
-    .catch(() => {
-      console.log("There was an error sending the messages.");
-    });
+
+  try {
+    const response = await vonage.sms.send({ to, from, text });
+
+    if (response["message-count"] === "1") {
+      const firstMessage = response.messages[0];
+
+      if (firstMessage.status === "0") {
+        console.log("Message sent successfully");
+      } else {
+        console.log("Failed to send SMS. Details:", firstMessage);
+        // Handle specific failed message if needed
+      }
+    } else {
+      console.log("Unexpected response format.");
+    }
+  } catch (error) {
+    console.log("There was an error sending the messages.");
+    return error;
+  }
 }
-
-// const otp = "12345";
-// const to = "919360745166";
-// const text = "Leaf-Reminder otp: " + otp + "\n\n";
-
-// sendSMS(to, text);
 
 module.exports = { sendSMS };

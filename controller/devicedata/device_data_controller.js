@@ -27,6 +27,18 @@ class Device_data {
     }
   }
 
+  data_update(filter, update) {
+    try {
+      const collections = client
+        .db(process.env.DB_USER)
+        .collection(process.env.COLLECTION_DEVICEDATA);
+      const result = collections.updateOne(filter, update);
+      return result;
+    } catch (error) {
+      return error;
+    }
+  }
+
   findone_devicedata(filter) {
     try {
       const collections = client

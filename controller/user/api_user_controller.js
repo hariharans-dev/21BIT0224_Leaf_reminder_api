@@ -1,4 +1,6 @@
-const { body } = require("express-validator");
+const crypto = require("crypto");
+const randomUsernameGenerator = require("random-username-generator");
+
 const {
   device_assignment,
 } = require("../inter_functions/device_allocation.js");
@@ -7,14 +9,18 @@ const {
   verification_mailer,
 } = require("../inter_functions/verification_mailer.js");
 const Login = require("./user_data_controller.js");
-const crypto = require("crypto");
+const { sendSMS } = require("../inter_functions/sms_otp_sender.js");
 
 const user_object = new Login();
 
-function generateRandomKey() {
+const generateRandomKey = () => {
   const length = 15;
   return crypto.randomBytes(length).toString("hex");
-}
+};
+
+const generateusername = () => {
+  return randomUsernameGenerator.generate();
+};
 
 function generateOTP() {
   const otp = Math.floor(100000 + Math.random() * 900000);
@@ -36,7 +42,7 @@ function decode_byte64(base64Credentials) {
 }
 
 const user_create = async (req, res) => {
-  const newuser = req.body;
+  const newuser = { user: generateusername(), password: generateRandomKey() };
   const byte64 = encode_byte64(newuser.user, newuser.password);
   const filter = { user: newuser.user };
 
@@ -44,8 +50,7 @@ const user_create = async (req, res) => {
     const existingUser = await user_object.finduser(filter);
 
     if (existingUser != null) {
-      console.log("user exits");
-      return res.status(409).json({ message: "User already exists" });
+      return res.status(409).json({ message: "user already exists" });
     }
     const deviceId = await device_assignment();
 
@@ -57,23 +62,25 @@ const user_create = async (req, res) => {
         key: byte64,
         created_time: currentDateTime,
         deviceid: deviceId,
-        verified: false,
+        mail_verified: false,
+        phone_verified: false,
+        default: true,
       };
 
       try {
         await user_object.createuser(new_user);
-        console.log("user created");
-        return res.status(200).json({ message: "User created" });
+        return res
+          .status(200)
+          .json({ user: newuser.user, password: newuser.password });
       } catch (error) {
-        console.error("server error");
-        return res.status(500).json({ message: "Server error" });
+        return res.status(500).json({ message: "server error" });
       }
     } else {
-      return res.status(404).json({ message: "User not created" });
+      return res.status(404).json({ message: "user not created" });
     }
   } catch (error) {
     console.error("server error");
-    return res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "server error" });
   }
 };
 
@@ -108,7 +115,14 @@ const user_login = async (req, res) => {
 
     if (result == null) {
       console.log("user not found");
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: "user not found" });
+    }
+    if (result.default && result != null) {
+      return res.status(404).json({
+        key: result.key,
+        default: true,
+        message: "user not verified",
+      });
     }
 
     const session_id = generateRandomKey();
@@ -128,6 +142,41 @@ const user_login = async (req, res) => {
   } catch (error) {
     console.error("server error");
     return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const user_default = async (req, res) => {
+  try {
+    const { key, user } = req.body;
+    const [, password] = decode_byte64(key);
+    const filter = { user: user };
+    console.log("default", user, password);
+
+    const result = await user_object.finduser(filter);
+
+    if (result == null) {
+      return res.status(404).json({ message: "user not found" });
+    }
+    if (!result.mail_verified) {
+      return res.status(404).json({ message: "user not verified" });
+    }
+    const tempuser = result.tempuser;
+    const newkey = encode_byte64(tempuser, password);
+    const currentDateTime = new Date();
+    const update = {
+      $set: { key: newkey, user: tempuser, update: currentDateTime },
+      $unset: { tempuser: 1, default: 1 },
+    };
+    console.log(update);
+
+    try {
+      await user_object.updateuser(filter, update);
+      return res.status(200).json({ message: "user updated", key: newkey });
+    } catch (error) {
+      return res.status(500).json({ message: "server error" });
+    }
+  } catch (error) {
+    return res.status(500).json({ message: "server error" });
   }
 };
 
@@ -264,64 +313,70 @@ const user_delete = async (req, res) => {
 
 const user_sendverification_email = async (req, res) => {
   try {
-    const filter = { key: req.body.key };
+    const { user, key } = req.body;
+    var filter = { key: key };
     const currentDateTime = new Date();
 
     const result = await user_object.finduser(filter);
 
     if (result == null) {
-      console.log("user not found");
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: "user not found" });
     }
 
-    if (result.verified === true) {
-      console.log("user already verified");
-      return res.status(409).json({ message: "User already verified" });
-    }
+    filter = { user: user };
+    var mailresult = await user_object.finduser(filter);
 
-    const verification_key = generateRandomKey();
-    const update = {
-      $set: {
-        verify_send_time: currentDateTime,
-        verification_key: verification_key,
-      },
-    };
+    if (mailresult != null && mailresult.mail_verified) {
+      return res.status(409).json({ message: "mail already taken" });
+    }
+    filter = { tempuser: user };
+    mailresult = await user_object.finduser(filter);
+    if (mailresult != null && !mailresult.default) {
+      return res.status(409).json({ message: "mail already taken" });
+    }
 
     try {
+      const verification_key = generateRandomKey();
+      const sent_key = encode_byte64(verification_key, key);
+      const update = {
+        $set: {
+          tempuser: user,
+          mail_verify_send_time: currentDateTime,
+          mail_verification_key: verification_key,
+        },
+      };
+      filter = { key: key };
       await user_object.updateuser(filter, update);
       const url =
-        process.env.API_DOMAIN +
-        "/api/users/getverification?key=" +
-        encode_byte64(process.env.EMAIL_VERIFICATION_APIKEY, verification_key);
-      verification_mailer(result.user, url);
-      console.log("verification sent");
-      return res.status(200).json({ verification_key });
+        process.env.FRONTEND_DOMAIN +
+        "/verify/password?key=" +
+        encode_byte64(process.env.EMAIL_VERIFICATION_APIKEY, sent_key);
+      console.log(url, "verification", verification_key);
+      await verification_mailer(user, url);
+      return res.status(200).json({ message: "mail verification sent" });
     } catch (error) {
-      console.log("server error");
-      return res.status(500).json({ message: "Server error" });
+      return res.status(500).json({ message: "server error" });
     }
   } catch (error) {
-    console.log("server error");
-    return res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "server error" });
   }
 };
 
 const user_getverification_email = async (req, res) => {
   try {
-    const keyParam = req.query.key;
-    const [apikey, verification_key] = decode_byte64(keyParam);
-    console.log(verification_key);
-    const filter = { verification_key: verification_key };
+    const { mail_verification_key, key } = req.body;
+    const filter = { key: key };
     const currentDateTime = new Date();
 
     const result = await user_object.finduser(filter);
 
     if (result == null) {
-      console.log("verification key not found");
-      return res.status(404).json({ message: "Verification key not found" });
+      return res.status(404).json({ message: "user not found" });
+    } else if (result.mail_verification_key !== mail_verification_key) {
+      return res.status(404).json({ message: "verification key not matched" });
     }
 
-    const verify_send_time = result.verify_send_time;
+    const verify_send_time = result.mail_verify_send_time;
     const timedifference = currentDateTime - verify_send_time;
     const seconds = timedifference / 1000;
 
@@ -329,34 +384,47 @@ const user_getverification_email = async (req, res) => {
     const expireminutes = expirehours * 60;
     const expireseconds = expireminutes * 60;
 
+    if (result.mail_verified == true) {
+      const random_key = generateRandomKey();
+      const forget_password_key = encode_byte64(random_key, result.user);
+      const update = {
+        $set: {
+          updated_time: currentDateTime,
+          forget_password_key: forget_password_key,
+          forget_password_key_send_time: currentDateTime,
+        },
+      };
+    }
     if (seconds < expireseconds) {
+      const random_key = generateRandomKey();
+      const forget_password_key = encode_byte64(random_key, result.user);
       const update = {
         $unset: {
-          verification_key: 1,
-          verify_send_time: 1,
+          mail_verification_key: 1,
+          mail_verify_send_time: 1,
         },
         $set: {
-          verified: true,
+          mail_verified: true,
           updated_time: currentDateTime,
-          verified_time: currentDateTime,
+          mail_verified_time: currentDateTime,
+          forget_password_key: forget_password_key,
+          forget_password_key_send_time: currentDateTime,
         },
       };
 
       try {
         await user_object.updateuser(filter, update);
-        console.log("user verified");
-        return res.status(200).json({ message: "User verified" });
+        return res
+          .status(200)
+          .json({ forget_password_key: forget_password_key });
       } catch (error) {
-        console.log("server error");
-        return res.status(500).json({ message: "Server error" });
+        return res.status(500).json({ message: "server error" });
       }
     } else {
-      console.log("verification key expired");
-      return res.status(409).json({ message: "Verification key expired" });
+      return res.status(409).json({ message: "verification expired" });
     }
   } catch (error) {
-    console.log("server error");
-    return res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "server error" });
   }
 };
 
@@ -369,50 +437,45 @@ const user_sendotp_email = async (req, res) => {
     const result = await user_object.finduser(filter);
 
     if (result == null) {
-      console.log("user not found");
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: "user not found" });
     }
 
     const otp = generateOTP();
     const update = {
       $set: {
-        otp_send_time: currentDateTime,
-        otp,
+        mail_otp_send_time: currentDateTime,
+        mail_otp: otp,
       },
     };
 
     try {
       await user_object.updateuser(filter, update);
-      console.log("user otp sent");
       otp_mailer(user, otp);
-      return res.status(200).json({ otp });
+      return res.status(200).json({ message: "mail otp sent" });
     } catch (error) {
-      console.log("server error");
-      return res.status(500).json({ message: "Server error" });
+      return res.status(500).json({ message: "server error" });
     }
   } catch (error) {
-    console.log("server error");
-    return res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "server error" });
   }
 };
 
 const user_verifyotp_email = async (req, res) => {
   try {
     const { user, otp } = req.body;
-    const filter = { user };
+    const filter = { user: user };
 
     const result = await user_object.finduser(filter);
 
     if (result == null) {
-      console.log("user not found");
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: "user not found" });
     }
 
-    if (result.otp != null) {
-      if (result.otp === otp) {
-        const otp_send_time = result.otp_send_time;
+    if (result.mail_otp != null) {
+      if (result.mail_otp === otp) {
+        const mail_otp_send_time = result.mail_otp_send_time;
         const currentDateTime = new Date();
-        const timedifference = currentDateTime - otp_send_time;
+        const timedifference = currentDateTime - mail_otp_send_time;
         const seconds = timedifference / 1000;
 
         const expireminutes = Number(process.env.USER_OTP_EXPIRE_MINUTES);
@@ -421,10 +484,10 @@ const user_verifyotp_email = async (req, res) => {
         if (seconds < expireseconds) {
           const random_key = generateRandomKey();
           const forget_password_key = encode_byte64(user, random_key);
-          const update = {
+          var update = {
             $unset: {
-              otp: 1,
-              otp_send_time: 1,
+              mail_otp: 1,
+              mail_otp_send_time: 1,
             },
             $set: {
               forget_password_key,
@@ -436,36 +499,37 @@ const user_verifyotp_email = async (req, res) => {
             await user_object.updateuser(filter, update);
             return res.status(200).json({ forget_password_key });
           } catch (error) {
-            console.log("server error");
-            return res.status(500).json({ message: "Server error" });
+            return res.status(500).json({ message: "server error" });
           }
         } else {
-          console.log("otp expired");
-          return res.status(409).json({ message: "OTP expired" });
+          var update = {
+            $unset: {
+              mail_otp: 1,
+              mail_otp_send_time: 1,
+            },
+          };
+          await user_object.updateuser(filter, update);
+          return res.status(409).json({ message: "mail otp expired" });
         }
       } else {
-        console.log("invalid otp");
-        return res.status(404).json({ message: "Invalid OTP" });
+        return res.status(404).json({ message: "invalid mail otp" });
       }
     } else {
-      console.log("otp not generated");
-      return res.status(404).json({ message: "No OTP generated" });
+      return res.status(404).json({ message: "no mail otp generated" });
     }
   } catch (error) {
-    console.log("server error");
-    return res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "server error" });
   }
 };
 
 const user_forgetpassword = async (req, res) => {
   try {
     const { forget_password_key, password } = req.body;
-    const filter = { forget_password_key };
+    const filter = { forget_password_key: forget_password_key };
 
     const result = await user_object.finduser(filter);
 
     if (result == null) {
-      console.log("no forgetkey found");
       return res.status(404).json({ message: "Forget password key timed out" });
     }
 
@@ -477,8 +541,9 @@ const user_forgetpassword = async (req, res) => {
     const expireminutes = Number(process.env.USER_FORGETKEY_EXPIRE_MINUTES);
     const expireseconds = expireminutes * 60;
 
+    console.log(seconds, expireseconds);
     if (seconds < expireseconds) {
-      const [olduser, oldpassword] = decode_byte64(result.key);
+      const [olduser] = decode_byte64(result.key);
       const newkey = encode_byte64(olduser, password);
       const update = {
         $set: { key: newkey },
@@ -491,19 +556,17 @@ const user_forgetpassword = async (req, res) => {
 
       try {
         await user_object.updateuser(update_filter, update);
-        console.log("password changed");
-        return res.status(200).json({ message: "Password changed" });
+        return res
+          .status(200)
+          .json({ message: "password changed", key: newkey });
       } catch (error) {
-        console.log("server error");
-        return res.status(500).json({ message: "Server error" });
+        return res.status(500).json({ message: "server error" });
       }
     } else {
-      console.log("forget password key expired");
-      return res.status(409).json({ message: "Forget password key expired" });
+      return res.status(409).json({ message: "password change expired" });
     }
   } catch (error) {
-    console.log("server error");
-    return res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "server error" });
   }
 };
 
@@ -544,35 +607,207 @@ const user_changepassword = async (req, res) => {
   }
 };
 
-const user_location = async (req, res) => {
+const user_sendverification_phone = async (req, res) => {
   try {
-    const { key, location } = req.body;
-    const filter = { key };
-    const data = {
+    var filter = { key: req.body.key };
+    const currentDateTime = new Date();
+
+    const result = await user_object.finduser(filter);
+
+    if (result == null) {
+      return res.status(404).json({ message: "no user found" });
+    }
+
+    filter = { phone: req.body.phone };
+    const phone_result = await user_object.finduser(filter);
+    if (phone_result != null) {
+      return res.status(409).json({ message: "phone already used" });
+    }
+
+    const verification_key = generateRandomKey();
+    const key = encode_byte64(verification_key, req.body.phone);
+    const keyparam = encode_byte64(process.env.PHONE_VERIFICATION_APIKEY, key);
+    const update = {
       $set: {
-        location: {
-          latitude: location.latitude,
-          longitude: location.longitude,
-        },
+        phone_verify_send_time: currentDateTime,
+        phone_verification_key: verification_key,
       },
     };
 
-    await user_object.updateuser(filter, data);
-    console.log("location updated");
-    return res.status(200).json({ message: "Location updated" });
+    try {
+      filter = { key: req.body.key };
+      await user_object.updateuser(filter, update);
+      const url =
+        process.env.API_DOMAIN +
+        "/api/users/getverification_phone?key=" +
+        keyparam;
+
+      const text =
+        "Leaf-Reminder phone verification, Click the link below\n\n" +
+        url +
+        "\n";
+      console.log(url);
+      const phone = req.body.phone;
+      await sendSMS(phone, text);
+      return res.status(200).json({ message: "phone verification sent" });
+    } catch (error) {
+      console.log("server error");
+      return res.status(500).json({ message: "server error" });
+    }
   } catch (error) {
     console.log("server error");
-    return res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "server error" });
   }
 };
 
-const user_sendverification_phone = (req, res) => {};
+const user_getverification_phone = async (req, res) => {
+  try {
+    const keyParam = req.query.key;
+    const [, key] = decode_byte64(keyParam);
+    const [verification_key, phone] = decode_byte64(key);
+    const filter = { phone_verification_key: verification_key };
+    const currentDateTime = new Date();
 
-const user_getverification_phone = (req, res) => {};
+    const result = await user_object.finduser(filter);
 
-const user_sendotp_phone = (req, res) => {};
+    if (result == null) {
+      return res
+        .status(404)
+        .json({ message: "mail verification key not found" });
+    }
 
-const user_verifyotp_phone = (req, res) => {};
+    const verify_send_time = result.phone_verify_send_time;
+    const timedifference = currentDateTime - verify_send_time;
+    const seconds = timedifference / 1000;
+
+    const expirehours = Number(process.env.USER_VERIFICATION_EXPIRE_HOURS);
+    const expireminutes = expirehours * 60;
+    const expireseconds = expireminutes * 60;
+
+    if (seconds < expireseconds) {
+      const update = {
+        $unset: {
+          phone_verification_key: 1,
+          phone_verify_send_time: 1,
+        },
+        $set: {
+          phone_verified: true,
+          updated_time: currentDateTime,
+          phone_verified_time: currentDateTime,
+          phone: phone,
+        },
+      };
+
+      try {
+        await user_object.updateuser(filter, update);
+        return res.status(200).json({ message: "phone verified" });
+      } catch (error) {
+        return res.status(500).json({ message: "server error" });
+      }
+    } else {
+      return res
+        .status(409)
+        .json({ message: "phone verification key expired" });
+    }
+  } catch (error) {
+    return res.status(500).json({ message: "server error" });
+  }
+};
+
+const user_sendotp_phone = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const filter = { phone: phone };
+    const currentDateTime = new Date();
+
+    const result = await user_object.finduser(filter);
+
+    if (result == null) {
+      return res.status(404).json({ message: "phone not found" });
+    }
+
+    const otp = generateOTP();
+    const update = {
+      $set: {
+        phone_otp_send_time: currentDateTime,
+        phone_otp: otp,
+      },
+    };
+
+    try {
+      await user_object.updateuser(filter, update);
+      const text = "Leaf-Reminder otp\n" + otp + "\n\n";
+      sendSMS(phone, text);
+      return res.status(200).json({ message: "phone otp sent" });
+    } catch (error) {
+      return res.status(500).json({ message: "server error" });
+    }
+  } catch (error) {
+    return res.status(500).json({ message: "server error" });
+  }
+};
+
+const user_verifyotp_phone = async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+    const filter = { phone: phone };
+
+    const result = await user_object.finduser(filter);
+
+    if (result == null) {
+      return res.status(404).json({ message: "phone not found" });
+    }
+
+    if (result.phone_otp != null) {
+      if (result.phone_otp === otp) {
+        const phone_otp_send_time = result.phone_otp_send_time;
+        const currentDateTime = new Date();
+        const timedifference = currentDateTime - phone_otp_send_time;
+        const seconds = timedifference / 1000;
+
+        const expireminutes = Number(process.env.USER_OTP_EXPIRE_MINUTES);
+        const expireseconds = expireminutes * 60;
+
+        if (seconds < expireseconds) {
+          const random_key = generateRandomKey();
+          const forget_password_key = encode_byte64(result.user, random_key);
+          var update = {
+            $unset: {
+              phone_otp: 1,
+              phone_otp_send_time: 1,
+            },
+            $set: {
+              forget_password_key,
+              forget_password_key_send_time: currentDateTime,
+            },
+          };
+
+          try {
+            await user_object.updateuser(filter, update);
+            return res.status(200).json({ forget_password_key });
+          } catch (error) {
+            return res.status(500).json({ message: "server error" });
+          }
+        } else {
+          var update = {
+            $unset: {
+              phone_otp: 1,
+              phone_otp_send_time: 1,
+            },
+          };
+          await user_object.updateuser(filter, update);
+          return res.status(409).json({ message: "phone otp expired" });
+        }
+      } else {
+        return res.status(404).json({ message: "invalid phone otp" });
+      }
+    } else {
+      return res.status(404).json({ message: "no phone otp generated" });
+    }
+  } catch (error) {
+    return res.status(500).json({ message: "server error" });
+  }
+};
 
 module.exports = {
   user_create,
@@ -591,5 +826,5 @@ module.exports = {
   user_verifyotp_phone,
   user_forgetpassword,
   user_changepassword,
-  user_location,
+  user_default,
 };

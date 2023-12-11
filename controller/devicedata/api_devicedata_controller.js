@@ -1,5 +1,8 @@
 const { validationResult } = require("express-validator");
 const Device_data = require("./device_data_controller.js");
+const {
+  soilmoisture_range,
+} = require("../inter_functions/soilmoisture_openapi.js");
 
 const device_object = new Device_data();
 
@@ -30,8 +33,8 @@ const devicedata_post = async (req, res) => {
       ],
     };
 
-    let message = "data added";
     let status = 200;
+    var responsedata = {};
 
     const result = await device_object.findone_devicedata(filter);
 
@@ -62,10 +65,28 @@ const devicedata_post = async (req, res) => {
             },
           });
           status = 200;
-          message = "data added";
+          responsedata = { message: "data added", water: controls.water };
         } else if (controls.mode === "automatic") {
-          // Implement the logic for automatic mode
-          // ...
+          const { soilmoisture } = req.body;
+          const { plant, location } = await device_object.findone_devicedata(
+            filter
+          );
+          var soilmoisture_response = await soilmoisture_range(plant, location);
+          soilmoisture_response = soilmoisture_response.data.split("-");
+          const range = soilmoisture_response.map((str) => parseInt(str, 10));
+          const avg_soilmoisture = (range[0] + range[1]) / 2;
+          if (soilmoisture > avg_soilmoisture) {
+            status = 200;
+            responsedata = {
+              message: "data added",
+              water: controls.water,
+            };
+          } else {
+            status = 200;
+            responsedata = {
+              message: "data added",
+            };
+          }
         } else {
           const timeinterval = controls.timeinterval;
           const lasttime = controls.time;
@@ -76,15 +97,82 @@ const devicedata_post = async (req, res) => {
               $set: { time: currentDateTime },
             });
             status = 200;
-            message = "data added";
+            responsedata = { message: "data added", water: controls.water };
+          } else {
+            status = 200;
+            responsedata = { message: "data added" };
           }
         }
       }
     }
 
-    return res.status(status).json({ message });
+    return res.status(status).json(responsedata);
   } catch (error) {
     console.error("An error occurred:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const devicedata_list = async (req, res) => {
+  const count = req.body.count;
+  const filter = { deviceid: req.body.deviceid };
+  try {
+    const response = await device_object.findcount_devicedata(filter);
+    if (response[0].data == null ? true : false) {
+      return res.status(200).json([]);
+    } else if (response[0].data.length <= count) {
+      return res.status(200).json(response[0].data);
+    }
+    var arr = [];
+    var index = 0;
+    for (
+      let i = response[0].data.length - 1;
+      i >= response[0].data.length - count;
+      i--
+    ) {
+      arr[index] = response[0].data[i];
+      index++;
+    }
+    return res.status(200).json(arr);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ message: "server error" });
+  }
+};
+
+const devicedata_update = async (req, res) => {
+  const data = req.body;
+  const { deviceid } = req.body;
+  delete data.deviceid;
+
+  const update = { $set: data };
+  const filter = { deviceid: deviceid };
+  try {
+    device_object.data_additon(filter, update);
+    res.status(200).json({ message: "devicedata updated" });
+  } catch (error) {
+    res.status(500).json({ message: "server error" });
+  }
+};
+
+const device_location = async (req, res) => {
+  try {
+    const { deviceid, location } = req.body;
+    const filter = { deviceid: deviceid };
+    const data = {
+      $set: {
+        location: {
+          latitude: location.latitude,
+          longitude: location.longitude,
+        },
+      },
+    };
+
+    await device_object.data_update(filter, data);
+    console.log("location updated");
+    return res.status(200).json({ message: "Location updated" });
+  } catch (error) {
+    console.log("server error", error);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -185,36 +273,13 @@ const control_timeinterval = async (req, res) => {
   }
 };
 
-const devicedata_list = async (req, res) => {
-  const count = req.body.count;
-  const filter = { deviceid: req.body.deviceid };
-  try {
-    const response = await device_object.findcount_devicedata(filter);
-    if (response[0].data.length <= count) {
-      return res.status(200).json(response[0].data);
-    }
-    var arr = [];
-    var index = 0;
-    for (
-      let i = response[0].data.length - 1;
-      i >= response[0].data.length - count;
-      i--
-    ) {
-      arr[index] = response[0].data[i];
-      index++;
-    }
-    return res.status(200).json(arr);
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({ message: "server error" });
-  }
-};
-
 module.exports = {
   devicedata_post,
+  devicedata_update,
+  devicedata_list,
+  device_location,
   control_create,
   control_automatic,
   control_manual,
   control_timeinterval,
-  devicedata_list,
 };

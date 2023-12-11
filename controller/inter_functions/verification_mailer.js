@@ -77,9 +77,6 @@ const verification_mailer = (email, verifyurl) => {
     "    </div>\n" +
     "  </body>\n" +
     "</html>";
-
-  console.log(verifyurl);
-
   const transporter = nodemailer.createTransport({
     host: "smtp-relay.sendinblue.com",
     port: 587,

@@ -18,7 +18,7 @@ const {
   user_getverification_phone,
   user_sendotp_phone,
   user_verifyotp_phone,
-  user_location,
+  user_default,
 } = require("../controller/user/api_user_controller.js");
 
 const verifyTokenuser = (req, res, next) => {
@@ -44,33 +44,16 @@ const verifyTokenuser = (req, res, next) => {
   }
   next();
 };
-function decode_byte64(base64Credentials) {
+
+const decode_byte64 = (base64Credentials) => {
   const decodedCredentials = Buffer.from(base64Credentials, "base64").toString(
     "utf-8"
   );
   const [user, password] = decodedCredentials.split(":");
   return [user, password];
-}
+};
 
-const validateRequestBody_create = [
-  (req, res, next) => {
-    const numberOfFields = Object.keys(req.body).length;
-    if (numberOfFields == 0) {
-      return res.status(400).json({ message: "no feild given" });
-    }
-    next();
-  },
-  check("user").exists().isString(),
-  check("password").exists().isString(),
-  check("name").exists().isString(),
-  (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ message: "not in proper format" });
-    }
-    next();
-  },
-];
+const validateRequestBody_create = [];
 const create_middleware = [validateRequestBody_create, verifyTokenuser];
 router.post("/create", create_middleware, user_create);
 
@@ -141,7 +124,7 @@ router.post("/login-session", login_session_middleware, user_login_session);
 const validateRequestBody_update = [
   (req, res, next) => {
     const numberOfFields = Object.keys(req.body).length;
-    const putallowedFields = ["name", "user", "key"];
+    const putallowedFields = ["name", "user", "key", "phone"];
     if (numberOfFields == 0) {
       return res.status(400).json({ message: "no feild given" });
     }
@@ -166,6 +149,27 @@ const validateRequestBody_update = [
 const update_middleware = [validateRequestBody_update, verifyTokenuser];
 router.put("/update", update_middleware, user_update);
 
+const validateRequestBody_default = [
+  (req, res, next) => {
+    const numberOfFields = Object.keys(req.body).length;
+    if (numberOfFields == 0) {
+      return res.status(400).json({ message: "no feild given" });
+    }
+    next();
+  },
+  check("key").exists().isString(),
+  check("user").exists().isString(),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: "not in proper format" });
+    }
+    next();
+  },
+];
+const default_middleware = [validateRequestBody_default, verifyTokenuser];
+router.post("/default", default_middleware, user_default);
+
 const validateRequestBody_delete = [
   (req, res, next) => {
     const numberOfFields = Object.keys(req.body).length;
@@ -186,7 +190,7 @@ const validateRequestBody_delete = [
 const delete_middleware = [validateRequestBody_delete, verifyTokenuser];
 router.delete("/delete", delete_middleware, user_delete);
 
-const validateRequestBody_sendverify_user = [
+const validateRequestBody_sendverify_mail_user = [
   (req, res, next) => {
     const numberOfFields = Object.keys(req.body).length;
     if (numberOfFields == 0) {
@@ -194,6 +198,7 @@ const validateRequestBody_sendverify_user = [
     }
     next();
   },
+  check("user").exists().isString(),
   check("key").exists().isString(),
   (req, res, next) => {
     const errors = validationResult(req);
@@ -203,50 +208,42 @@ const validateRequestBody_sendverify_user = [
     next();
   },
 ];
-const sendverify_middleware = [
-  validateRequestBody_sendverify_user,
+const sendverify_mail_middleware = [
+  validateRequestBody_sendverify_mail_user,
   verifyTokenuser,
 ];
 router.post(
-  "/sendverification",
-  sendverify_middleware,
+  "/sendverification_mail",
+  sendverify_mail_middleware,
   user_sendverification_email
 );
 
-const validateRequestBody_getverify_user = [
+const validateRequestBody_getverify_mail_user = [
   (req, res, next) => {
-    const keyParam = req.query.key;
-
-    if (typeof keyParam === "undefined" || keyParam === null) {
-      return res
-        .status(400)
-        .json({ message: "Missing 'key' parameter in the query string" });
+    const numberOfFields = Object.keys(req.body).length;
+    if (numberOfFields == 0) {
+      return res.status(400).json({ message: "no feild given" });
     }
-
-    if (typeof keyParam !== "string") {
-      return res
-        .status(400)
-        .json({ message: "The 'key' parameter is not a string" });
-    }
-
-    const [apikey, data] = decode_byte64(keyParam);
-    if (apikey !== process.env.EMAIL_VERIFICATION_APIKEY) {
-      return res
-        .status(400)
-        .json({ message: "invalid Authorization header format." });
+    next();
+  },
+  check("mail_verification_key").exists().isString(),
+  check("key").exists().isString(),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: "not in proper format" });
     }
     next();
   },
 ];
-
-const getverify_middleware = [validateRequestBody_getverify_user];
-router.get(
-  "/getverification",
-  getverify_middleware,
+const getverify_mail_middleware = [validateRequestBody_getverify_mail_user];
+router.post(
+  "/getverification_mail",
+  getverify_mail_middleware,
   user_getverification_email
 );
 
-const validateRequestBody_sendotp_user = [
+const validateRequestBody_sendotp_mail_user = [
   (req, res, next) => {
     const numberOfFields = Object.keys(req.body).length;
     if (numberOfFields == 0) {
@@ -263,10 +260,13 @@ const validateRequestBody_sendotp_user = [
     next();
   },
 ];
-const sendotp_middleware = [validateRequestBody_sendotp_user, verifyTokenuser];
-router.post("/sendotp", sendotp_middleware, user_sendotp_email);
+const sendotp_mail_middleware = [
+  validateRequestBody_sendotp_mail_user,
+  verifyTokenuser,
+];
+router.post("/sendotp_mail", sendotp_mail_middleware, user_sendotp_email);
 
-const validateRequestBody_verifyotp_user = [
+const validateRequestBody_verifyotp_mail_user = [
   (req, res, next) => {
     const numberOfFields = Object.keys(req.body).length;
     if (numberOfFields == 0) {
@@ -284,11 +284,11 @@ const validateRequestBody_verifyotp_user = [
     next();
   },
 ];
-const verifyotp_middleware = [
-  validateRequestBody_verifyotp_user,
+const verifyotp_mail_middleware = [
+  validateRequestBody_verifyotp_mail_user,
   verifyTokenuser,
 ];
-router.post("/verifyotp", verifyotp_middleware, user_verifyotp_email);
+router.post("/verifyotp_mail", verifyotp_mail_middleware, user_verifyotp_email);
 
 const validateRequestBody_forgetpassword = [
   (req, res, next) => {
@@ -348,6 +348,7 @@ const validateRequestBody_sendverify_phone = [
     next();
   },
   check("key").exists().isString(),
+  check("phone").exists().isString(),
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -361,12 +362,44 @@ const sendverify_middleware_phone = [
   verifyTokenuser,
 ];
 router.post(
-  "/sendverification",
+  "/sendverification_phone",
   sendverify_middleware_phone,
   user_sendverification_phone
 );
 
-const validateRequestBody_location = [
+const validateRequestBody_getverify_phone_user = [
+  (req, res, next) => {
+    const keyParam = req.query.key;
+
+    if (typeof keyParam === "undefined" || keyParam === null) {
+      return res
+        .status(400)
+        .json({ message: "Missing 'key' parameter in the query string" });
+    }
+
+    if (typeof keyParam !== "string") {
+      return res
+        .status(400)
+        .json({ message: "The 'key' parameter is not a string" });
+    }
+
+    const [apikey, data] = decode_byte64(keyParam);
+    if (apikey !== process.env.PHONE_VERIFICATION_APIKEY) {
+      return res
+        .status(400)
+        .json({ message: "invalid Authorization header format." });
+    }
+    next();
+  },
+];
+const getverify_phone_middleware = [validateRequestBody_getverify_phone_user];
+router.get(
+  "/getverification_phone",
+  getverify_phone_middleware,
+  user_getverification_phone
+);
+
+const validateRequestBody_sendotp_phone_user = [
   (req, res, next) => {
     const numberOfFields = Object.keys(req.body).length;
     if (numberOfFields == 0) {
@@ -374,21 +407,47 @@ const validateRequestBody_location = [
     }
     next();
   },
-  check("key").exists().isString(),
-  check("location").exists(),
+  check("phone").exists().isString(),
   (req, res, next) => {
     const errors = validationResult(req);
-    console.log(errors);
     if (!errors.isEmpty()) {
       return res.status(400).json({ message: "not in proper format" });
     }
     next();
   },
 ];
-const sendverify_middleware_location = [
-  validateRequestBody_location,
+const sendotp_phone_middleware = [
+  validateRequestBody_sendotp_phone_user,
   verifyTokenuser,
 ];
-router.post("/location", sendverify_middleware_location, user_location);
+router.post("/sendotp_phone", sendotp_phone_middleware, user_sendotp_phone);
+
+const validateRequestBody_verifyotp_phone_user = [
+  (req, res, next) => {
+    const numberOfFields = Object.keys(req.body).length;
+    if (numberOfFields == 0) {
+      return res.status(400).json({ message: "no feild given" });
+    }
+    next();
+  },
+  check("otp").exists().isString(),
+  check("phone").exists().isString(),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: "not in proper format" });
+    }
+    next();
+  },
+];
+const verifyotp_phone_middleware = [
+  validateRequestBody_verifyotp_phone_user,
+  verifyTokenuser,
+];
+router.post(
+  "/verifyotp_phone",
+  verifyotp_phone_middleware,
+  user_verifyotp_phone
+);
 
 module.exports = router;

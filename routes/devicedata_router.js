@@ -3,11 +3,13 @@ const { check, validationResult } = require("express-validator");
 
 const {
   devicedata_post,
+  devicedata_list,
+  device_location,
+  devicedata_update,
   control_timeinterval,
   control_manual,
   control_automatic,
   control_create,
-  devicedata_list,
 } = require("../controller/devicedata/api_devicedata_controller.js");
 
 function decode_byte64(base64Credentials) {
@@ -118,6 +120,63 @@ const find_middleware = [
   verifyTokendevice,
 ];
 router.post("/devicedata/list", find_middleware, devicedata_list);
+
+const validateRequestBody_devicedata_update = [
+  (req, res, next) => {
+    const numberOfFields = Object.keys(req.body).length;
+    const putallowedFields = ["plant", "data", "location", "deviceid"];
+    if (numberOfFields == 0) {
+      return res.status(400).json({ message: "no feild given" });
+    }
+    for (const key in req.body) {
+      if (!putallowedFields.includes(key)) {
+        return res
+          .status(400)
+          .json({ error: `Field '${key}' is not allowed.` });
+      }
+    }
+    next();
+  },
+  check("deviceid").exists().isString(),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: "not in proper format" });
+    }
+    next();
+  },
+];
+const middleware_devicedata_update = [
+  validateRequestBody_devicedata_update,
+  verifyTokendevice,
+];
+router.post(
+  "/devicedata/update",
+  middleware_devicedata_update,
+  devicedata_update
+);
+
+const validateRequestBody_location = [
+  (req, res, next) => {
+    const numberOfFields = Object.keys(req.body).length;
+    if (numberOfFields == 0) {
+      return res.status(400).json({ message: "no feild given" });
+    }
+    next();
+  },
+  check("deviceid").exists().isString(),
+  check("location").exists(),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    console.log(errors);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: "not in proper format" });
+    }
+    next();
+  },
+];
+const middleware_location = [validateRequestBody_location, verifyTokendevice];
+router.post("/location", middleware_location, device_location);
 
 const validateRequestBody_control_create = [
   (req, res, next) => {
