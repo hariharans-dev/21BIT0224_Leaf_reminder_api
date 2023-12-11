@@ -15,7 +15,11 @@ const devicedata_router = require("./routes/devicedata_router");
 app.use("/api/users", user_router);
 app.use("/api/inventory", inventory_router);
 app.use("/api/device", devicedata_router);
-// app.use("/api/test", test_router);
+
+app.get("/health", (req, res) => {
+  return res.status(200).json({ message: "response from the application" });
+});
+
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
